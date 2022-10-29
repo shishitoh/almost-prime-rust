@@ -1,13 +1,13 @@
-//! 擬素数(almost-prime)を計算する関数モジュール
+//! 概素数(almost-prime)を計算する関数モジュール
 //!
-//! # 擬素数とは
+//! # 概素数とは
 //!
-//! ある自然数nがk-擬素数であるとは、
+//! ある自然数nがk-概素数であるとは、
 //! n = p_1 * p_2 * ... * p_n
 //! を満たすp_1, ..., p_nが存在することを言う。
 //! ただし、p_1, ..., p_nは互いに等しくても良い素数である
 //!
-//! 例えば、k = 3に対してのk-擬素数は小さい順から
+//! 例えば、k = 3に対してのk-概素数は小さい順から
 //! 8 = 2 * 2 * 2, 12=2 * 2 * 3, 18=2 * 3 * 3,
 //! 20=2 * 2 * 5, 27=3 * 3 * 3, 28=2 * 2 * 7, 30=2 * 3 * 5, ...
 //! となる。
@@ -17,7 +17,7 @@
 mod sieve;
 mod merge;
 
-/// 擬素数を列挙し、Vec<usize>で返す。
+/// 概素数を列挙し、Vec<usize>で返す。
 ///
 /// * `k` - k-概素数のk。
 /// * `i` - この値未満の概素数を列挙する。
@@ -45,13 +45,14 @@ pub fn almprm(k: usize, i: usize) -> Vec<usize> {
 pub mod almprms {
     // # [`almprm`]に対してのリンクの貼り方がわからない
 
-    //! 疑素数列挙の実装をまとめたモジュール。
+    //! 概素数列挙の実装をまとめたモジュール。
     //!
     //! ひとつ上の階層で`almprm`が定義されているので
     //! 基本的にはこのモジュールを使う必要はない。
 
     use std::collections::BinaryHeap;
     use std::cmp::Reverse;
+    use std::ops;
     use num_integer as integer;
     use crate::merge::{ SizeOrdVec, heap_merge };
     use crate::sieve::sieve;
@@ -106,7 +107,7 @@ pub mod almprms {
         }
     }
 
-    /// 始めに素数を列挙し、それらの積を生成する実装。
+    /// 始めに素数を列挙し、それらからk個を選び積を生成する実装。
     pub fn almprm3(k: usize, i: usize) -> Vec<usize> {
         if k == 0 {
             if i < 2 {
@@ -115,6 +116,7 @@ pub mod almprms {
                 return vec![1];
             }
         }
+
         let primes = sieve(integer::div_ceil(i, 1 << (k-1)));
         let mut pks :BinaryHeap<Reverse<SizeOrdVec<usize>>>
             = BinaryHeap::new();
@@ -159,6 +161,130 @@ pub mod almprms {
             }
         }
     }
+
+    /// 始めに素数を列挙し、それらを基にk=2, 3, ...に対するk-概素数
+    /// を順に作成する。
+    pub fn almprm4(k: usize, i: usize) -> Vec<usize> {
+        if k == 0 {
+            if i < 2 {
+                return Vec::new();
+            } else {
+                return vec![1];
+            }
+        } else if k == 1 {
+            return sieve(i);
+        }
+
+        let primes: Vec<usize> = sieve(integer::div_ceil(i, 1 << (k-1)));
+
+        // 素数の積を生成する際に同じ数が重複して作成されるのを避けるために
+        // 最小の素因数が2の集合、3の集合、... と別々に管理する。
+        let mut p_prod: Vec<Vec<usize>> = Vec::new();
+
+        for r in 2..=k {
+            make_prod(r, k, i, &primes, &mut p_prod);
+        }
+
+        let mut heap = p_prod.into_iter()
+            .map(|v| Reverse(SizeOrdVec(v)))
+            .collect::<BinaryHeap<_>>();
+
+        heap_merge(heap).0
+    }
+
+    fn make_prod(r: usize, k: usize, i: usize,
+                 primes: &[usize], p_prod: &mut Vec<Vec<usize>>)
+    {
+        if r == 2 {
+            *p_prod = Vec::new();
+
+            for (p_begin, &prime)
+                in primes.binary_take_while(|p| {
+                    // p * p * 2.pow((k-r) as u32) < i
+                    p*p < integer::div_ceil(i, 1 << (k-r))
+                }).iter().enumerate()
+            {
+
+                p_prod.push(
+                    primes[p_begin..].binary_take_while(|p| {
+                        prime * p < integer::div_ceil(i, 1 << (k-r))
+                    }).iter()
+                        .map(|&p| prime * p)
+                        .collect::<Vec<usize>>()
+                );
+            }
+        } else {
+            let mut p_prod_impl: Vec<BinaryHeap<Reverse<SizeOrdVec<usize>>>> = Vec::new();
+
+            for (p_begin, &p)
+                in primes.binary_take_while(|p| {
+                    // p.pow(r as u32) * 2.pow((k-r) as u32) < i
+                    p.pow(r as u32) < integer::div_ceil(i, 1 << (k-r))
+                }).iter().enumerate()
+            {
+
+                p_prod_impl.push(BinaryHeap::new());
+
+                for pp
+                    in p_prod[p_begin..].binary_take_while(|x| {
+                        // p * x[0] * 2.pow((k-r) as u32) < i
+                        x[0] < integer::div_ceil(integer::div_ceil(i, 1 << (k-r)), p)
+                    }).iter()
+                {
+
+                    p_prod_impl.last_mut()
+                        .unwrap()
+                        .push(
+                            Reverse(
+                                SizeOrdVec(
+                                    pp.binary_take_while(|x| {
+                                        // p * x * 2.pow((k-r) as u32) < i
+                                        *x < integer::div_ceil(integer::div_ceil(i, 1 << (k-r)), p)
+                                    }).iter()
+                                        .map(|&x| x * p)
+                                        .collect()
+                                )
+                            )
+                        );
+                }
+            }
+
+            *p_prod = p_prod_impl.into_iter()
+                .map(|heap| heap_merge(heap).0)
+                .collect();
+        }
+    }
+
+    trait BinaryTakeWhile
+        : ops::Index<usize> + ops::Index<ops::RangeTo<usize>>
+    {
+        type Item;
+
+        /// どんなi as usizeに対しても、もしfunc(self[i]) == falseであったら
+        /// i <= j を満たす全てのj as usizeについてfunc(self[j]) == trueが成立する
+        /// (前方が全てtrue, 後方が全てfalseと2分されているとき)とき、
+        /// この関数はfunc(self[i]) == falseを満たす最小のiに対して&self[..i]を返す。
+        ///
+        /// 前提条件が成り立たない場合、この関数は意味のある返り値を返さない。
+        fn binary_take_while<F>(&self, func: F)
+            -> &<Self as ops::Index<ops::RangeTo<usize>>>::Output
+        where
+            F: Fn(&Self::Item) -> bool;
+    }
+
+    impl<T> BinaryTakeWhile for [T] {
+        type Item = T;
+
+        #[inline]
+        fn binary_take_while<F>(&self, func: F)
+            -> &<Self as ops::Index<ops::RangeTo<usize>>>::Output
+        where
+            F: FnMut(&Self::Item) -> bool,
+        {
+            let p = self.partition_point(func);
+            &self[..p]
+        }
+    }
 }
 
 #[cfg(test)]
@@ -201,5 +327,14 @@ mod tests {
         assert_eq!(almprms::almprm2(5, 1000), almprms::almprm3(5, 1000));
         assert_eq!(almprms::almprm2(10, 10000), almprms::almprm3(10, 10000));
         assert_eq!(almprms::almprm2(16, 1000000), almprms::almprm3(16, 1000000));
+    }
+
+    #[test]
+    fn test_almprm4() {
+        test_common(almprms::almprm4);
+        assert_eq!(almprms::almprm3(3, 1000), almprms::almprm4(3, 1000));
+        assert_eq!(almprms::almprm3(5, 1000), almprms::almprm4(5, 1000));
+        assert_eq!(almprms::almprm3(10, 10000), almprms::almprm4(10, 10000));
+        assert_eq!(almprms::almprm3(16, 1000000), almprms::almprm4(16, 1000000));
     }
 }

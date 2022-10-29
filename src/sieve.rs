@@ -2,7 +2,7 @@
 
 pub use sieves::sieve3 as sieve;
 
-mod sieves {
+pub mod sieves {
     /// 最もオーソドックスな実装。
     pub fn sieve1(i: usize) -> Vec<usize> {
         if i < 3 {
@@ -66,7 +66,7 @@ mod sieves {
     /// 2, 3, 5の倍数を飛ばす実装。
     ///
     /// 実装の詳細については
-    /// [https://qiita.com/peria/items/a4ff4ddb3336f7b81d50]の
+    /// [エラトステネスの篩の高速化](https://qiita.com/peria/items/a4ff4ddb3336f7b81d50)の
     /// (1), (2), (6)
     /// を参照。
     pub fn sieve3(i: usize) -> Vec<usize> {
@@ -229,9 +229,20 @@ mod sieves {
         ];
     }
 
-    mod countr_iter {
+    pub mod countr_iter {
+
+        // 実行されないドキュメンテーションコメント書きたいんだけど...
 
         /// u8に対して立っているビットの位置を小さい順に返すIterator。
+        ///
+        /// # Examples
+        ///
+        /// use crate::sieve::sieves::countr_iter::CountrIter;
+        ///
+        /// assert_eq!(
+        ///     CountrIter(0b01001101).collect::<Vec<i32>>(),
+        ///     vec![0, 2, 3, 6]
+        /// );
         #[repr(transparent)]
         pub struct CountrIter(pub u8);
 
