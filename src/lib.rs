@@ -1,21 +1,21 @@
-//! 概素数(almost-prime)を計算する関数モジュール
+//! 概素数(almost-prime)を計算する関数モジュール。
 //!
 //! # 概素数とは
 //!
 //! ある自然数nがk-概素数であるとは、
 //! n = p_1 * p_2 * ... * p_n
 //! を満たすp_1, ..., p_nが存在することを言う。
-//! ただし、p_1, ..., p_nは互いに等しくても良い素数である
+//! ただし、p_1, ..., p_nは互いに等しくても良い素数である。
 //!
 //! 例えば、k = 3に対してのk-概素数は小さい順から
-//! 8 = 2 * 2 * 2, 12=2 * 2 * 3, 18=2 * 3 * 3,
-//! 20=2 * 2 * 5, 27=3 * 3 * 3, 28=2 * 2 * 7, 30=2 * 3 * 5, ...
+//! 8 = 2 * 2 * 2, 12 = 2 * 2 * 3, 18 = 2 * 3 * 3,
+//! 20 = 2 * 2 * 5, 27 = 3 * 3 * 3, 28 = 2 * 2 * 7, 30 = 2 * 3 * 5, ...
 //! となる。
 
 #![allow(unused)]
 
-mod sieve;
 mod merge;
+mod sieve;
 
 /// 概素数を列挙し、Vec<usize>で返す。
 ///
@@ -43,28 +43,28 @@ pub fn almprm(k: usize, i: usize) -> Vec<usize> {
 }
 
 pub mod almprms {
-    // # [`almprm`]に対してのリンクの貼り方がわからない
+    // [`almprm`]に対してのリンクの貼り方がわからない
 
     //! 概素数列挙の実装をまとめたモジュール。
     //!
     //! ひとつ上の階層で`almprm`が定義されているので
     //! 基本的にはこのモジュールを使う必要はない。
 
-    use std::collections::BinaryHeap;
-    use std::cmp::Reverse;
-    use std::ops;
-    use num_integer as integer;
-    use crate::merge::{ SizeOrdVec, heap_merge };
+    use crate::merge::{heap_merge, SizeOrdVec};
     use crate::sieve::sieve;
+    use num_integer as integer;
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    use std::ops;
 
     /// i未満のすべての自然数を
     /// どのkに対するk-概素数かで振り分ける実装。
     pub fn almprm1(k: usize, i: usize) -> Vec<usize> {
-        let mut ret: Vec<Vec<usize>> = vec![Vec::new(); k+1];
+        let mut ret: Vec<Vec<usize>> = vec![Vec::new(); k + 1];
 
         for n in 1..i {
             for v in ret.iter_mut() {
-                if v.iter().any(|&a| n%a == 0) {
+                if v.iter().any(|&a| n % a == 0) {
                     continue;
                 }
                 v.push(n);
@@ -83,15 +83,16 @@ pub mod almprms {
             } else {
                 return vec![1];
             }
-        } else if k == 1 { // 無くても動きはするがこっちの方が圧倒的に速い
+        } else if k == 1 {
+            // 無くても動きはするがこっちの方が圧倒的に速い
             return sieve(i);
         } else {
             let mut pk: Vec<u8> = vec![0; i];
 
-            for p in sieve(integer::div_ceil(i, 1 << (k-1))).into_iter() {
-                let mut pi = p as usize;
+            for p in sieve(integer::div_ceil(i, 1 << (k - 1))).into_iter() {
+                let mut pi = p;
                 let mut r = 1;
-                while pi < i && r <= k+1 {
+                while pi < i && r <= k + 1 {
                     for q in (pi..i).step_by(pi) {
                         pk[q] += 1;
                     }
@@ -117,19 +118,21 @@ pub mod almprms {
             }
         }
 
-        let primes = sieve(integer::div_ceil(i, 1 << (k-1)));
-        let mut pks :BinaryHeap<Reverse<SizeOrdVec<usize>>>
-            = BinaryHeap::new();
+        let primes = sieve(integer::div_ceil(i, 1 << (k - 1)));
+        let mut pks: BinaryHeap<Reverse<SizeOrdVec<usize>>> = BinaryHeap::new();
 
         almprm3_impl(k, i, 1, &primes, &mut pks);
 
         heap_merge(pks).0
     }
 
-    fn almprm3_impl(k: usize, i: usize, mul_p: usize, primes: &[usize],
-                    pks: &mut BinaryHeap<Reverse<SizeOrdVec<usize>>>)
-    {
-
+    fn almprm3_impl(
+        k: usize,
+        i: usize,
+        mul_p: usize,
+        primes: &[usize],
+        pks: &mut BinaryHeap<Reverse<SizeOrdVec<usize>>>,
+    ) {
         // オーバーフロー、処理速度を考えなければ次の文と同値
         //
         // ```
@@ -137,27 +140,23 @@ pub mod almprms {
         //     |&p| mul_p * p.powi(k) < i
         // );
         // ```
-        let p_end = primes.partition_point(
-            |&p|
-                p < (
-                        integer::div_ceil(i, mul_p) as f64
-                    ).powf(
-                        1.0/(k as f64)
-                    ).ceil() as usize
-        );
+        let p_end = primes.partition_point(|&p| {
+            p < (integer::div_ceil(i, mul_p) as f64)
+                .powf(1.0 / (k as f64))
+                .ceil() as usize
+        });
 
         if k == 1 {
             // 本当はpksにはIteratorを持たせたい
-            pks.push(
-                Reverse(SizeOrdVec(
-                    primes[..p_end].iter()
-                        .map(|&x| x * mul_p)
-                        .collect::<Vec<usize>>()
-                ))
-            );
+            pks.push(Reverse(SizeOrdVec(
+                primes[..p_end]
+                    .iter()
+                    .map(|&x| x * mul_p)
+                    .collect::<Vec<usize>>(),
+            )));
         } else {
             for p in 0..p_end {
-                almprm3_impl(k-1, i, mul_p*primes[p] as usize, &primes[p..], pks);
+                almprm3_impl(k - 1, i, mul_p * primes[p] as usize, &primes[p..], pks);
             }
         }
     }
@@ -175,7 +174,7 @@ pub mod almprms {
             return sieve(i);
         }
 
-        let primes: Vec<usize> = sieve(integer::div_ceil(i, 1 << (k-1)));
+        let primes: Vec<usize> = sieve(integer::div_ceil(i, 1 << (k - 1)));
 
         // 素数の積を生成する際に同じ数が重複して作成されるのを避けるために
         // 最小の素因数が2の集合、3の集合、... と別々に管理する。
@@ -185,79 +184,74 @@ pub mod almprms {
             make_prod(r, k, i, &primes, &mut p_prod);
         }
 
-        let mut heap = p_prod.into_iter()
+        let mut heap = p_prod
+            .into_iter()
             .map(|v| Reverse(SizeOrdVec(v)))
             .collect::<BinaryHeap<_>>();
 
         heap_merge(heap).0
     }
 
-    fn make_prod(r: usize, k: usize, i: usize,
-                 primes: &[usize], p_prod: &mut Vec<Vec<usize>>)
-    {
+    fn make_prod(r: usize, k: usize, i: usize, primes: &[usize], p_prod: &mut Vec<Vec<usize>>) {
         if r == 2 {
             *p_prod = Vec::new();
 
-            for (p_begin, &prime)
-                in primes.binary_take_while(|p| {
+            for (p_begin, &prime) in primes
+                .binary_take_while(|p| {
                     // p * p * 2.pow((k-r) as u32) < i
-                    p*p < integer::div_ceil(i, 1 << (k-r))
-                }).iter().enumerate()
+                    p * p < integer::div_ceil(i, 1 << (k - r))
+                })
+                .iter()
+                .enumerate()
             {
-
                 p_prod.push(
-                    primes[p_begin..].binary_take_while(|p| {
-                        prime * p < integer::div_ceil(i, 1 << (k-r))
-                    }).iter()
+                    primes[p_begin..]
+                        .binary_take_while(|p| prime * p < integer::div_ceil(i, 1 << (k - r)))
+                        .iter()
                         .map(|&p| prime * p)
-                        .collect::<Vec<usize>>()
+                        .collect::<Vec<usize>>(),
                 );
             }
         } else {
             let mut p_prod_impl: Vec<BinaryHeap<Reverse<SizeOrdVec<usize>>>> = Vec::new();
 
-            for (p_begin, &p)
-                in primes.binary_take_while(|p| {
+            for (p_begin, &p) in primes
+                .binary_take_while(|p| {
                     // p.pow(r as u32) * 2.pow((k-r) as u32) < i
-                    p.pow(r as u32) < integer::div_ceil(i, 1 << (k-r))
-                }).iter().enumerate()
+                    p.pow(r as u32) < integer::div_ceil(i, 1 << (k - r))
+                })
+                .iter()
+                .enumerate()
             {
-
                 p_prod_impl.push(BinaryHeap::new());
 
-                for pp
-                    in p_prod[p_begin..].binary_take_while(|x| {
+                for pp in p_prod[p_begin..]
+                    .binary_take_while(|x| {
                         // p * x[0] * 2.pow((k-r) as u32) < i
-                        x[0] < integer::div_ceil(integer::div_ceil(i, 1 << (k-r)), p)
-                    }).iter()
+                        x[0] < integer::div_ceil(integer::div_ceil(i, 1 << (k - r)), p)
+                    })
+                    .iter()
                 {
-
-                    p_prod_impl.last_mut()
-                        .unwrap()
-                        .push(
-                            Reverse(
-                                SizeOrdVec(
-                                    pp.binary_take_while(|x| {
-                                        // p * x * 2.pow((k-r) as u32) < i
-                                        *x < integer::div_ceil(integer::div_ceil(i, 1 << (k-r)), p)
-                                    }).iter()
-                                        .map(|&x| x * p)
-                                        .collect()
-                                )
-                            )
-                        );
+                    p_prod_impl.last_mut().unwrap().push(Reverse(SizeOrdVec(
+                        pp.binary_take_while(|x| {
+                            // p * x * 2.pow((k-r) as u32) < i
+                            *x < integer::div_ceil(integer::div_ceil(i, 1 << (k - r)), p)
+                        })
+                        .iter()
+                        .map(|&x| x * p)
+                        .collect(),
+                    )));
                 }
             }
 
-            *p_prod = p_prod_impl.into_iter()
+            *p_prod = p_prod_impl
+                .into_iter()
                 .map(|heap| heap_merge(heap).0)
                 .collect();
         }
     }
 
-    trait BinaryTakeWhile
-        : ops::Index<usize> + ops::Index<ops::RangeTo<usize>>
-    {
+    trait BinaryTakeWhile: ops::Index<usize> + ops::Index<ops::RangeTo<usize>> {
         type Item;
 
         /// どんなi as usizeに対しても、もしfunc(self[i]) == falseであったら
@@ -266,8 +260,10 @@ pub mod almprms {
         /// この関数はfunc(self[i]) == falseを満たす最小のiに対して&self[..i]を返す。
         ///
         /// 前提条件が成り立たない場合、この関数は意味のある返り値を返さない。
-        fn binary_take_while<F>(&self, func: F)
-            -> &<Self as ops::Index<ops::RangeTo<usize>>>::Output
+        fn binary_take_while<F>(
+            &self,
+            func: F,
+        ) -> &<Self as ops::Index<ops::RangeTo<usize>>>::Output
         where
             F: Fn(&Self::Item) -> bool;
     }
@@ -276,8 +272,10 @@ pub mod almprms {
         type Item = T;
 
         #[inline]
-        fn binary_take_while<F>(&self, func: F)
-            -> &<Self as ops::Index<ops::RangeTo<usize>>>::Output
+        fn binary_take_while<F>(
+            &self,
+            func: F,
+        ) -> &<Self as ops::Index<ops::RangeTo<usize>>>::Output
         where
             F: FnMut(&Self::Item) -> bool,
         {
@@ -294,16 +292,19 @@ mod tests {
 
     fn test_common<F>(f: F)
     where
-        F: Fn(usize, usize) -> Vec<usize>
+        F: Fn(usize, usize) -> Vec<usize>,
     {
         assert_eq!(Vec::<usize>::new(), f(0, 0));
         assert_eq!(Vec::<usize>::new(), f(0, 1));
-        assert_eq!(vec![1],  f(0, 2));
-        assert_eq!(vec![1],  f(0, 1000));
+        assert_eq!(vec![1], f(0, 2));
+        assert_eq!(vec![1], f(0, 1000));
         for i in 0..10 {
             assert_eq!(sieve(i), f(1, i));
         }
-        assert_eq!(vec![4, 6, 9, 10, 14, 15, 21, 22, 25, 26, 33, 34, 35, 38, 39], f(2, 40));
+        assert_eq!(
+            vec![4, 6, 9, 10, 14, 15, 21, 22, 25, 26, 33, 34, 35, 38, 39],
+            f(2, 40)
+        );
         assert_eq!(vec![16, 24, 36, 40, 54, 56], f(4, 60));
     }
 

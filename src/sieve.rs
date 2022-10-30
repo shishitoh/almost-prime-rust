@@ -55,11 +55,14 @@ pub mod sieves {
             }
 
             [2].into_iter()
-                .chain(flags.into_iter()
-                    .enumerate()
-                    .filter(|&(v, item)| item)
-                    .map(|(v, item)| (2 * v + 1))
-                ).collect()
+                .chain(
+                    flags
+                        .into_iter()
+                        .enumerate()
+                        .filter(|&(v, item)| item)
+                        .map(|(v, item)| (2 * v + 1)),
+                )
+                .collect()
         }
     }
 
@@ -70,7 +73,7 @@ pub mod sieves {
     /// (1), (2), (6)
     /// を参照。
     pub fn sieve3(i: usize) -> Vec<usize> {
-        use constants::{ D, d_D, D_q, d_Dp_q, bitmasks };
+        use constants::{bitmasks, d_D, d_Dp_q, D_q, D};
         use countr_iter::CountrIter;
 
         if i < 3 {
@@ -85,14 +88,23 @@ pub mod sieves {
 
         {
             let r: u8 = ((i - 1) % 30 + 1) as u8;
-            if      r <= 1  { flags[size - 1] = 0b00000000; }
-            else if r <= 7  { flags[size - 1] = 0b00000001; }
-            else if r <= 11 { flags[size - 1] = 0b00000011; }
-            else if r <= 13 { flags[size - 1] = 0b00000111; }
-            else if r <= 17 { flags[size - 1] = 0b00001111; }
-            else if r <= 19 { flags[size - 1] = 0b00011111; }
-            else if r <= 23 { flags[size - 1] = 0b00111111; }
-            else if r <= 29 { flags[size - 1] = 0b01111111; }
+            if r <= 1 {
+                flags[size - 1] = 0b00000000;
+            } else if r <= 7 {
+                flags[size - 1] = 0b00000001;
+            } else if r <= 11 {
+                flags[size - 1] = 0b00000011;
+            } else if r <= 13 {
+                flags[size - 1] = 0b00000111;
+            } else if r <= 17 {
+                flags[size - 1] = 0b00001111;
+            } else if r <= 19 {
+                flags[size - 1] = 0b00011111;
+            } else if r <= 23 {
+                flags[size - 1] = 0b00111111;
+            } else if r <= 29 {
+                flags[size - 1] = 0b01111111;
+            }
         }
 
         flags[0] &= 0b11111110;
@@ -153,17 +165,16 @@ pub mod sieves {
         }
 
         // このメソッドチェーンどうなの?
-        [2, 3, 5].into_iter()
-            .chain(flags.into_iter()
-                .enumerate()
-                .flat_map(|(i, flag)| {
-                    let mut d: [usize; 8] = [0; 8];
-                    for idx in CountrIter(flag) {
-                        d[idx as usize] = 30*i + D[idx as usize] as usize;
-                    }
-                    d.into_iter().filter(|&i| i != 0)
-                })
-            ).collect()
+        [2, 3, 5]
+            .into_iter()
+            .chain(flags.into_iter().enumerate().flat_map(|(i, flag)| {
+                let mut d: [usize; 8] = [0; 8];
+                for idx in CountrIter(flag) {
+                    d[idx as usize] = 30 * i + D[idx as usize] as usize;
+                }
+                d.into_iter().filter(|&i| i != 0)
+            }))
+            .collect()
     }
 
     mod constants {
@@ -254,8 +265,8 @@ pub mod sieves {
                     None
                 } else {
                     let data = self.0;
-                    self.0 &= self.0-1;
-                    match (!data+1) & data {
+                    self.0 &= self.0 - 1;
+                    match (!data + 1) & data {
                         0b00000001 => Some(0),
                         0b00000010 => Some(1),
                         0b00000100 => Some(2),
