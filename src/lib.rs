@@ -162,7 +162,7 @@ pub mod almprms {
     }
 
     /// 始めに素数を列挙し、それらを基にk=2, 3, ...に対するk-概素数
-    /// を順に作成する。
+    /// を順に作成する実装。
     pub fn almprm4(k: usize, i: usize) -> Vec<usize> {
         if k == 0 {
             if i < 2 {
@@ -194,7 +194,7 @@ pub mod almprms {
 
     fn make_prod(r: usize, k: usize, i: usize, primes: &[usize], p_prod: &mut Vec<Vec<usize>>) {
         if r == 2 {
-            *p_prod = Vec::new();
+            p_prod.clear();
 
             for (p_begin, &prime) in primes
                 .binary_take_while(|p| {
@@ -254,8 +254,8 @@ pub mod almprms {
     trait BinaryTakeWhile: ops::Index<usize> + ops::Index<ops::RangeTo<usize>> {
         type Item;
 
-        /// どんなi as usizeに対しても、もしfunc(self[i]) == falseであったら
-        /// i <= j を満たす全てのj as usizeについてfunc(self[j]) == trueが成立する
+        /// どんなi: usizeに対しても、もしfunc(self[i]) == falseであったら
+        /// i <= j を満たす全てのj: usizeについてfunc(self[j]) == falseが成立する
         /// (前方が全てtrue, 後方が全てfalseと2分されているとき)とき、
         /// この関数はfunc(self[i]) == falseを満たす最小のiに対して&self[..i]を返す。
         ///

@@ -88,22 +88,24 @@ pub mod sieves {
 
         {
             let r: u8 = ((i - 1) % 30 + 1) as u8;
-            if r <= 1 {
-                flags[size - 1] = 0b00000000;
+            *flags.last_mut().unwrap() = if r <= 1 {
+                0b00000000
             } else if r <= 7 {
-                flags[size - 1] = 0b00000001;
+                0b00000001
             } else if r <= 11 {
-                flags[size - 1] = 0b00000011;
+                0b00000011
             } else if r <= 13 {
-                flags[size - 1] = 0b00000111;
+                0b00000111
             } else if r <= 17 {
-                flags[size - 1] = 0b00001111;
+                0b00001111
             } else if r <= 19 {
-                flags[size - 1] = 0b00011111;
+                0b00011111
             } else if r <= 23 {
-                flags[size - 1] = 0b00111111;
+                0b00111111
             } else if r <= 29 {
-                flags[size - 1] = 0b01111111;
+                0b01111111
+            } else {
+                0b11111111
             }
         }
 
