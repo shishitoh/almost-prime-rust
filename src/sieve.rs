@@ -15,13 +15,12 @@ pub mod sieves {
                 flags[1] = false;
 
                 let mut j: usize = 2;
-                while j * j < i {
+                for j in (2..).take_while(|&x| x * x < i) {
                     if flags[j] {
                         for s in (j * j..i).step_by(j) {
                             flags[s] = false;
                         }
                     }
-                    j += 1;
                 }
 
                 flags
@@ -45,13 +44,12 @@ pub mod sieves {
 
             let mut j: usize = 1;
             // NOTE: ((i-1)+4-1)/4 は(i-1)を4で割って切り上げた値
-            while j * j + j < ((i - 1) + 4 - 1) / 4 {
+            for j in (1..).take_while(|&x| x * x + x < ((i - 1) + 4 - 1) / 4) {
                 if flags[j] {
                     for s in (2 * j * (j + 1)..i / 2).step_by(2 * j + 1) {
                         flags[s] = false;
                     }
                 }
-                j += 1;
             }
 
             [2].into_iter()
