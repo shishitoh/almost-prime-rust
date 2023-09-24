@@ -276,6 +276,8 @@ pub mod sieves {
 #[cfg(test)]
 mod test {
     use super::sieves;
+    extern crate test;
+    use test::Bencher;
 
     fn test_common<F, R>(f: F)
     where
@@ -304,6 +306,7 @@ mod test {
             assert_eq!(a, b);
         }
     }
+
     #[test]
     fn test_sieve1() {
         test_common(sieves::sieve1);
@@ -334,5 +337,24 @@ mod test {
         iter_equals(sieves::sieve2(100), sieves::sieve3(100));
         iter_equals(sieves::sieve2(1000), sieves::sieve3(1000));
         iter_equals(sieves::sieve2(10000000), sieves::sieve3(10000000));
+    }
+
+    fn bench_common<R: Iterator<Item = usize>>(f: impl Fn(usize) -> R) {
+        f(1000).collect::<Vec<usize>>();
+    }
+
+    #[bench]
+    fn bench_sieve1(b: &mut Bencher) {
+        b.iter(|| bench_common(sieves::sieve1));
+    }
+
+    #[bench]
+    fn bench_sieve2(b: &mut Bencher) {
+        b.iter(|| bench_common(sieves::sieve2));
+    }
+
+    #[bench]
+    fn bench_sieve3(b: &mut Bencher) {
+        b.iter(|| bench_common(sieves::sieve3));
     }
 }

@@ -12,6 +12,7 @@
 //! 20 = 2 * 2 * 5, 27 = 3 * 3 * 3, 28 = 2 * 2 * 7, 30 = 2 * 3 * 5, ...
 //! となる。
 
+#![feature(test)]
 #![allow(unused)]
 
 mod merge;
@@ -403,5 +404,34 @@ mod tests {
         assert_eq!(almprms::almprm3(5, 1000), almprms::almprm4(5, 1000));
         assert_eq!(almprms::almprm3(10, 10000), almprms::almprm4(10, 10000));
         assert_eq!(almprms::almprm3(16, 1000000), almprms::almprm4(16, 1000000));
+    }
+
+    fn bench_common(f: impl Fn(usize, usize) -> Vec<usize>) {
+        f(20, 10000000);
+    }
+
+    //    #[bench]
+    //    fn bench_almprm1(b: &mut test::Bencher) {
+    //        b.iter(|| bench_common(almprms::almprm1));
+    //    }
+
+    //    #[bench]
+    //    fn bench_almprm2(b: &mut test::Bencher) {
+    //        b.iter(|| bench_common(almprms::almprm2));
+    //    }
+
+    #[bench]
+    fn bench_almprm3(b: &mut test::Bencher) {
+        b.iter(|| bench_common(almprms::almprm3));
+    }
+
+    #[bench]
+    fn bench_almprm3_1(b: &mut test::Bencher) {
+        b.iter(|| bench_common(almprms::almprm3_1));
+    }
+
+    #[bench]
+    fn bench_almprm4(b: &mut test::Bencher) {
+        b.iter(|| bench_common(almprms::almprm4));
     }
 }
