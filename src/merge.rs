@@ -111,6 +111,195 @@ pub fn heap_merge<T: Ord>(mut heap: BinaryHeap<Reverse<SizeOrdVec<T>>>) -> SizeO
     heap.pop().unwrap().0
 }
 
+// peekがimmutableに行えるPeekable
+// その代わり初期化時点で一回はnextが呼び出される
+pub struct PrefetchingPeekable<I: Iterator> {
+    iter: I,
+    peeked: Option<I::Item>,
+}
+
+impl<I: Iterator> PrefetchingPeekable<I> {
+    #[inline]
+    pub fn new(mut iter: I) -> Self {
+        let peeked = iter.next();
+        PrefetchingPeekable::<I> { iter, peeked }
+    }
+
+    #[inline]
+    pub fn peek(&self) -> &Option<<Self as Iterator>::Item> {
+        &self.peeked
+    }
+}
+
+impl<I: Iterator> Iterator for PrefetchingPeekable<I> {
+    type Item = I::Item;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let ret = self.peeked.take();
+        self.peeked = self.iter.next();
+        ret
+    }
+}
+
+pub trait TPrefetchingPeekable
+where
+    Self: Iterator + Sized,
+{
+    #[inline]
+    fn prefetching_peekable(self) -> PrefetchingPeekable<Self> {
+        PrefetchingPeekable::new(self)
+    }
+}
+
+impl<I: Iterator> TPrefetchingPeekable for I {}
+
+// PrefetchingPeekableをself.peek()の結果で比較するラッパー構造体
+#[repr(transparent)]
+pub struct OrdPeekable<I>(PrefetchingPeekable<I>)
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord;
+
+impl<I> std::iter::Iterator for OrdPeekable<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord,
+{
+    type Item = <I as Iterator>::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
+impl<I> std::convert::From<I> for OrdPeekable<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord,
+{
+    #[inline]
+    fn from(from: I) -> Self {
+        OrdPeekable(PrefetchingPeekable::new(from))
+    }
+}
+
+impl<I> std::cmp::PartialEq for OrdPeekable<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord + PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0.peek().eq(&other.0.peek())
+    }
+}
+
+impl<I> std::cmp::Eq for OrdPeekable<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord + Eq,
+{
+}
+
+impl<I> std::cmp::PartialOrd for OrdPeekable<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord + Eq,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// peekした値を逆順で比較する
+impl<I> std::cmp::Ord for OrdPeekable<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord + Eq,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self.0.peek(), other.0.peek()) {
+            (None, None) => std::cmp::Ordering::Equal,
+            (None, _) => std::cmp::Ordering::Less,
+            (_, None) => std::cmp::Ordering::Greater,
+            (Some(a), Some(b)) => b.cmp(a),
+        }
+    }
+}
+
+#[repr(transparent)]
+pub struct HeapMergedIter<I>(BinaryHeap<OrdPeekable<I>>)
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord;
+
+impl<I> HeapMergedIter<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord,
+{
+    pub fn new() -> Self {
+        Self(BinaryHeap::new())
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<OrdPeekable<I>> {
+        self.0.pop()
+    }
+
+    #[inline]
+    pub fn push(&mut self, iter: OrdPeekable<I>) {
+        self.0.push(iter)
+    }
+}
+
+impl<I> std::convert::From<BinaryHeap<OrdPeekable<I>>> for HeapMergedIter<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord,
+{
+    fn from(from: BinaryHeap<OrdPeekable<I>>) -> Self {
+        Self(from)
+    }
+}
+
+impl<I> std::convert::From<HeapMergedIter<I>> for BinaryHeap<OrdPeekable<I>>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord,
+{
+    fn from(from: HeapMergedIter<I>) -> Self {
+        from.0
+    }
+}
+
+impl<I> std::iter::Iterator for HeapMergedIter<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Ord,
+{
+    type Item = <I as Iterator>::Item;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_empty() {
+            None
+        } else {
+            let mut iter = self.pop().unwrap();
+            let ret = iter.next();
+            if iter.0.peek().is_some() {
+                self.push(iter);
+            }
+            ret
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

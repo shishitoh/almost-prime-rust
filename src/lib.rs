@@ -50,11 +50,15 @@ pub mod almprms {
     //! ひとつ上の階層で`almprm`が定義されているので
     //! 基本的にはこのモジュールを使う必要はない。
 
-    use crate::merge::{heap_merge, SizeOrdVec};
+    use crate::merge::{
+        heap_merge, HeapMergedIter, OrdPeekable, PrefetchingPeekable, SizeOrdVec,
+        TPrefetchingPeekable,
+    };
     use crate::sieve::sieve;
     use num_integer as integer;
     use std::cmp::Reverse;
     use std::collections::BinaryHeap;
+    use std::iter;
     use std::ops;
 
     /// i未満のすべての自然数を
@@ -146,7 +150,6 @@ pub mod almprms {
         });
 
         if k == 1 {
-            // 本当はpksにはIteratorを持たせたい
             pks.push(Reverse(SizeOrdVec(
                 primes[..p_end]
                     .iter()
@@ -158,6 +161,55 @@ pub mod almprms {
                 almprm3_impl(k - 1, i, mul_p * primes[p] as usize, &primes[p..], pks);
             }
         }
+    }
+
+    pub fn almprm3_1(k: usize, i: usize) -> Vec<usize> {
+        if k == 0 {
+            if i < 2 {
+                return Vec::new();
+            } else {
+                return vec![1];
+            }
+        }
+
+        let primes: Vec<usize> = sieve(integer::div_ceil(i, 1 << (k - 1))).collect();
+        let mul_clousure = |a| move |&b| a * b;
+        let mut pks: HeapMergedIter<_> = HeapMergedIter::new();
+
+        pks = almprm3_1_impl(k, i, 1, &primes, pks, &mul_clousure);
+        pks.collect()
+    }
+
+    fn almprm3_1_impl<'a, F: Fn(&'a usize) -> usize>(
+        k: usize,
+        i: usize,
+        mul_p: usize,
+        primes: &'a [usize],
+        // pks のライフタイムは'aよりも短い
+        mut pks: HeapMergedIter<std::iter::Map<std::slice::Iter<'a, usize>, F>>,
+        mul_clousure: &impl Fn(usize) -> F,
+    ) -> HeapMergedIter<std::iter::Map<std::slice::Iter<'a, usize>, F>> {
+        let p_end = primes.partition_point(|&p| {
+            p < (integer::div_ceil(i, mul_p) as f64)
+                .powf(1.0 / (k as f64))
+                .ceil() as usize
+        });
+
+        if k == 1 {
+            pks.push(primes[..p_end].iter().map(mul_clousure(mul_p)).into());
+        } else {
+            for p in 0..p_end {
+                pks = almprm3_1_impl(
+                    k - 1,
+                    i,
+                    mul_p * primes[p] as usize,
+                    &primes[p..],
+                    pks,
+                    mul_clousure,
+                );
+            }
+        }
+        pks
     }
 
     /// 始めに素数を列挙し、それらを基にk=2, 3, ...に対するk-概素数
@@ -289,6 +341,8 @@ pub mod almprms {
 mod tests {
     use super::almprms;
     use crate::sieve::sieve;
+    extern crate test;
+    use test::Bencher;
 
     fn test_common<F>(f: F)
     where
@@ -299,7 +353,7 @@ mod tests {
         assert_eq!(vec![1], f(0, 2));
         assert_eq!(vec![1], f(0, 1000));
         for i in 0..10 {
-            assert_eq!(sieve(i), f(1, i));
+            assert_eq!(sieve(i).collect::<Vec<_>>(), f(1, i));
         }
         assert_eq!(
             vec![4, 6, 9, 10, 14, 15, 21, 22, 25, 26, 33, 34, 35, 38, 39],
@@ -328,6 +382,18 @@ mod tests {
         assert_eq!(almprms::almprm2(5, 1000), almprms::almprm3(5, 1000));
         assert_eq!(almprms::almprm2(10, 10000), almprms::almprm3(10, 10000));
         assert_eq!(almprms::almprm2(16, 1000000), almprms::almprm3(16, 1000000));
+    }
+
+    #[test]
+    fn test_almprm3_1() {
+        test_common(almprms::almprm3_1);
+        assert_eq!(almprms::almprm2(3, 1000), almprms::almprm3_1(3, 1000));
+        assert_eq!(almprms::almprm2(5, 1000), almprms::almprm3_1(5, 1000));
+        assert_eq!(almprms::almprm2(10, 10000), almprms::almprm3_1(10, 10000));
+        assert_eq!(
+            almprms::almprm2(16, 1000000),
+            almprms::almprm3_1(16, 1000000)
+        );
     }
 
     #[test]
