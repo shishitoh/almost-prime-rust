@@ -85,11 +85,11 @@ pub mod almprms {
             }
         } else if k == 1 {
             // 無くても動きはするがこっちの方が圧倒的に速い
-            return sieve(i);
+            return sieve(i).collect();
         } else {
             let mut pk: Vec<u8> = vec![0; i];
 
-            for p in sieve(integer::div_ceil(i, 1 << (k - 1))).into_iter() {
+            for p in sieve(integer::div_ceil(i, 1 << (k - 1))) {
                 let mut pi = p;
                 let mut r = 1;
                 while pi < i && r <= k + 1 {
@@ -102,8 +102,7 @@ pub mod almprms {
             }
             pk.into_iter()
                 .enumerate()
-                .filter(|&(_, val)| val as usize == k)
-                .map(|(idx, _)| idx)
+                .filter_map(|(idx, val)| if val as usize == k { Some(idx) } else { None })
                 .collect()
         }
     }
@@ -118,7 +117,7 @@ pub mod almprms {
             }
         }
 
-        let primes = sieve(integer::div_ceil(i, 1 << (k - 1)));
+        let primes: Vec<usize> = sieve(integer::div_ceil(i, 1 << (k - 1))).collect();
         let mut pks: BinaryHeap<Reverse<SizeOrdVec<usize>>> = BinaryHeap::new();
 
         almprm3_impl(k, i, 1, &primes, &mut pks);
@@ -171,10 +170,10 @@ pub mod almprms {
                 return vec![1];
             }
         } else if k == 1 {
-            return sieve(i);
+            return sieve(i).collect();
         }
 
-        let primes: Vec<usize> = sieve(integer::div_ceil(i, 1 << (k - 1)));
+        let primes: Vec<usize> = sieve(integer::div_ceil(i, 1 << (k - 1))).collect();
 
         // 素数の積を生成する際に同じ数が重複して作成されるのを避けるために
         // 最小の素因数が2の集合、3の集合、... と別々に管理する。
@@ -258,8 +257,9 @@ pub mod almprms {
         /// i <= j を満たす全てのj: usizeについてfunc(self[j]) == falseが成立する
         /// (前方が全てtrue, 後方が全てfalseと2分されているとき)とき、
         /// この関数はfunc(self[i]) == falseを満たす最小のiに対して&self[..i]を返す。
+        /// もしself全体に渡ってfunc(self[i]) == trueであれば、そのときは&self[..self.len()]を返す。
         ///
-        /// 前提条件が成り立たない場合、この関数は意味のある返り値を返さない。
+        /// 事前条件が成り立たない場合、この関数は意味のある返り値を返さない。
         fn binary_take_while<F>(
             &self,
             func: F,

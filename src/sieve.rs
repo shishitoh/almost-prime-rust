@@ -4,45 +4,44 @@ pub use sieves::sieve3 as sieve;
 
 pub mod sieves {
     /// 最もオーソドックスな実装。
-    pub fn sieve1(i: usize) -> Vec<usize> {
+    pub fn sieve1(i: usize) -> Box<dyn Iterator<Item = usize>> {
         if i < 3 {
-            Vec::new()
+            Box::new(std::iter::empty())
         } else {
-            {
-                let mut flags: Vec<bool> = vec![true; i];
+            Box::new(
+                {
+                    let mut flags: Vec<bool> = vec![true; i];
 
-                flags[0] = false;
-                flags[1] = false;
+                    flags[0] = false;
+                    flags[1] = false;
 
-                let mut j: usize = 2;
-                for j in (2..).take_while(|&x| x * x < i) {
-                    if flags[j] {
-                        for s in (j * j..i).step_by(j) {
-                            flags[s] = false;
+                    let mut j: usize = 2;
+                    for j in (2..).take_while(|&x| x * x < i) {
+                        if flags[j] {
+                            for s in (j * j..i).step_by(j) {
+                                flags[s] = false;
+                            }
                         }
                     }
-                }
 
-                flags
-            }
-            .into_iter()
-            .enumerate()
-            .filter(|&(_, item)| item)
-            .map(|(v, _)| v)
-            .collect()
+                    flags
+                }
+                .into_iter()
+                .enumerate()
+                .filter_map(|(v, item)| if item { Some(v) } else { None }),
+            )
         }
     }
 
     /// 2の倍数を飛ばす実装。
-    pub fn sieve2(i: usize) -> Vec<usize> {
+    pub fn sieve2(i: usize) -> Box<dyn Iterator<Item = usize>> {
         if i < 3 {
-            Vec::new()
+            Box::new(std::iter::empty())
         } else {
             let mut flags: Vec<bool> = vec![true; i / 2];
 
             flags[0] = false;
 
-            let mut j: usize = 1;
             // NOTE: ((i-1)+4-1)/4 は(i-1)を4で割って切り上げた値
             for j in (1..).take_while(|&x| x * x + x < ((i - 1) + 4 - 1) / 4) {
                 if flags[j] {
@@ -52,15 +51,16 @@ pub mod sieves {
                 }
             }
 
-            [2].into_iter()
-                .chain(
-                    flags
-                        .into_iter()
-                        .enumerate()
-                        .filter(|&(v, item)| item)
-                        .map(|(v, item)| (2 * v + 1)),
-                )
-                .collect()
+            Box::new(
+                [2].into_iter()
+                    .chain(flags.into_iter().enumerate().filter_map(|(v, item)| {
+                        if item {
+                            Some(2 * v + 1)
+                        } else {
+                            None
+                        }
+                    })),
+            )
         }
     }
 
@@ -70,16 +70,16 @@ pub mod sieves {
     /// [エラトステネスの篩の高速化](https://qiita.com/peria/items/a4ff4ddb3336f7b81d50)の
     /// (1), (2), (6)
     /// を参照。
-    pub fn sieve3(i: usize) -> Vec<usize> {
+    pub fn sieve3(i: usize) -> Box<dyn Iterator<Item = usize>> {
         use constants::{bitmasks, d_D, d_Dp_q, D_q, D};
         use countr_iter::CountrIter;
 
         if i < 3 {
-            return Vec::new();
+            return Box::new(std::iter::empty());
         } else if i < 4 {
-            return vec![2];
+            return Box::new(std::iter::once(2));
         } else if i < 6 {
-            return vec![2, 3];
+            return Box::new([2, 3].into_iter());
         }
         let size = (i - 1) / 30 + 1;
         let mut flags: Vec<u8> = vec![0xff; size];
@@ -116,7 +116,7 @@ pub mod sieves {
                     + 2 * m1 * D[idx_i1 as usize] as usize
                     + D_q[idx_i1 as usize] as usize;
                 let bitmask: &[u8; 8] = &bitmasks[idx_i1 as usize];
-                let g1: [usize; 8] = [
+                let g: [usize; 8] = [
                     m1 * d_D[0] as usize + d_Dp_q[idx_i1 as usize][0] as usize,
                     m1 * d_D[1] as usize + d_Dp_q[idx_i1 as usize][1] as usize,
                     m1 * d_D[2] as usize + d_Dp_q[idx_i1 as usize][2] as usize,
@@ -126,20 +126,11 @@ pub mod sieves {
                     m1 * d_D[6] as usize + d_Dp_q[idx_i1 as usize][6] as usize,
                     m1 * d_D[7] as usize + d_Dp_q[idx_i1 as usize][7] as usize,
                 ];
-                let g2: [usize; 7] = [
-                    g1[0],
-                    g1[0] + g1[1],
-                    g1[0] + g1[1] + g1[2],
-                    g1[0] + g1[1] + g1[2] + g1[3],
-                    g1[0] + g1[1] + g1[2] + g1[3] + g1[4],
-                    g1[0] + g1[1] + g1[2] + g1[3] + g1[4] + g1[5],
-                    g1[0] + g1[1] + g1[2] + g1[3] + g1[4] + g1[5] + g1[6],
-                ];
 
                 // ループアンローリング
                 while m < size && idx_i2 != 0 {
                     flags[m] &= bitmask[idx_i2 as usize];
-                    m += g1[idx_i2 as usize];
+                    m += g[idx_i2 as usize];
                     idx_i2 = match idx_i2 {
                         7 => 0,
                         _ => idx_i2 + 1,
@@ -147,34 +138,37 @@ pub mod sieves {
                 }
                 while m + 28 * m1 + (D[idx_i1 as usize] as usize) - 1 < size {
                     flags[m] &= bitmask[0];
-                    flags[m + g2[0]] &= bitmask[1];
-                    flags[m + g2[1]] &= bitmask[2];
-                    flags[m + g2[2]] &= bitmask[3];
-                    flags[m + g2[3]] &= bitmask[4];
-                    flags[m + g2[4]] &= bitmask[5];
-                    flags[m + g2[5]] &= bitmask[6];
-                    flags[m + g2[6]] &= bitmask[7];
-                    m += 30 * m1 + D[idx_i1 as usize] as usize;
+                    m += g[0];
+                    flags[m] &= bitmask[1];
+                    m += g[1];
+                    flags[m] &= bitmask[2];
+                    m += g[2];
+                    flags[m] &= bitmask[3];
+                    m += g[3];
+                    flags[m] &= bitmask[4];
+                    m += g[4];
+                    flags[m] &= bitmask[5];
+                    m += g[5];
+                    flags[m] &= bitmask[6];
+                    m += g[6];
+                    flags[m] &= bitmask[7];
+                    m += g[7];
                 }
                 while m < size {
                     flags[m] &= bitmask[idx_i2 as usize];
-                    m += g1[idx_i2 as usize];
+                    m += g[idx_i2 as usize];
                     idx_i2 += 1;
                 }
             }
         }
 
-        // このメソッドチェーンどうなの?
-        [2, 3, 5]
-            .into_iter()
-            .chain(flags.into_iter().enumerate().flat_map(|(i, flag)| {
-                let mut d: [usize; 8] = [0; 8];
-                for idx in CountrIter(flag) {
-                    d[idx as usize] = 30 * i + D[idx as usize] as usize;
-                }
-                d.into_iter().filter(|&i| i != 0)
-            }))
-            .collect()
+        Box::new(
+            [2, 3, 5]
+                .into_iter()
+                .chain(flags.into_iter().enumerate().flat_map(|(i, flag)| {
+                    CountrIter(flag).map(move |idx| 30 * i + D[idx as usize] as usize)
+                })),
+        )
     }
 
     mod constants {
@@ -248,12 +242,13 @@ pub mod sieves {
         ///
         /// # Examples
         ///
+        /// ```ignore
         /// use crate::sieve::sieves::countr_iter::CountrIter;
-        ///
         /// assert_eq!(
         ///     CountrIter(0b01001101).collect::<Vec<i32>>(),
         ///     vec![0, 2, 3, 6]
         /// );
+        /// ```
         #[repr(transparent)]
         pub struct CountrIter(pub u8);
 
@@ -261,22 +256,17 @@ pub mod sieves {
             type Item = u8;
 
             fn next(&mut self) -> Option<Self::Item> {
+                const TABLE: [u8; 8] = [0, 1, 6, 2, 7, 5, 4, 3];
+                const DE_BRUJIN_SEQ: u8 = 0b00011101;
                 if self.0 == 0 {
                     None
                 } else {
                     let data = self.0;
                     self.0 &= self.0 - 1;
-                    match (!data + 1) & data {
-                        0b00000001 => Some(0),
-                        0b00000010 => Some(1),
-                        0b00000100 => Some(2),
-                        0b00001000 => Some(3),
-                        0b00010000 => Some(4),
-                        0b00100000 => Some(5),
-                        0b01000000 => Some(6),
-                        0b10000000 => Some(7),
-                        _ => std::unreachable!(),
-                    }
+                    let hash: usize = (((data & (!data + 1)).overflowing_mul(DE_BRUJIN_SEQ).0)
+                        as u8
+                        >> 5) as usize;
+                    Some(TABLE[hash])
                 }
             }
         }
@@ -287,49 +277,62 @@ pub mod sieves {
 mod test {
     use super::sieves;
 
-    fn test_common<F>(f: F)
+    fn test_common<F, R>(f: F)
     where
-        F: Fn(usize) -> Vec<usize>,
+        F: Fn(usize) -> R,
+        R: Iterator<Item = usize>,
     {
-        assert_eq!(Vec::<usize>::new(), f(0));
-        assert_eq!(Vec::<usize>::new(), f(1));
-        assert_eq!(Vec::<usize>::new(), f(2));
-        assert_eq!(vec![2], f(3));
-        assert_eq!(vec![2, 3], f(4));
-        assert_eq!(vec![2, 3], f(5));
-        assert_eq!(vec![2, 3, 5], f(6));
-        assert_eq!(vec![2, 3, 5], f(7));
-        assert_eq!(vec![2, 3, 5, 7], f(8));
-        assert_eq!(vec![2, 3, 5, 7], f(9));
-        assert_eq!(vec![2, 3, 5, 7], f(10));
+        assert_eq!(Vec::<usize>::new(), f(0).collect::<Vec<_>>());
+        assert_eq!(Vec::<usize>::new(), f(1).collect::<Vec<_>>());
+        assert_eq!(Vec::<usize>::new(), f(2).collect::<Vec<_>>());
+        assert_eq!(vec![2], f(3).collect::<Vec<_>>());
+        assert_eq!(vec![2, 3], f(4).collect::<Vec<_>>());
+        assert_eq!(vec![2, 3], f(5).collect::<Vec<_>>());
+        assert_eq!(vec![2, 3, 5], f(6).collect::<Vec<_>>());
+        assert_eq!(vec![2, 3, 5], f(7).collect::<Vec<_>>());
+        assert_eq!(vec![2, 3, 5, 7], f(8).collect::<Vec<_>>());
+        assert_eq!(vec![2, 3, 5, 7], f(9).collect::<Vec<_>>());
+        assert_eq!(vec![2, 3, 5, 7], f(10).collect::<Vec<_>>());
     }
 
+    // TODO: このテストは不完全
+    fn iter_equals<T: std::fmt::Debug + std::cmp::Eq>(
+        i: impl Iterator<Item = T>,
+        j: impl Iterator<Item = T>,
+    ) {
+        for (a, b) in i.zip(j) {
+            assert_eq!(a, b);
+        }
+    }
     #[test]
     fn test_sieve1() {
         test_common(sieves::sieve1);
-        assert_eq!(vec![2, 3, 5, 7, 11, 13, 17, 19, 23, 29], sieves::sieve1(30));
+        assert_eq!(
+            vec![2, 3, 5, 7, 11, 13, 17, 19, 23, 29],
+            sieves::sieve1(30).collect::<Vec<_>>()
+        );
         assert_eq!(
             vec![
                 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79,
                 83, 89, 97
             ],
-            sieves::sieve1(100)
+            sieves::sieve1(100).collect::<Vec<_>>()
         );
     }
 
     #[test]
     fn test_sieve2() {
         test_common(sieves::sieve2);
-        assert_eq!(sieves::sieve1(100), sieves::sieve2(100));
-        assert_eq!(sieves::sieve1(1000), sieves::sieve2(1000));
-        assert_eq!(sieves::sieve1(1000000), sieves::sieve2(1000000));
+        iter_equals(sieves::sieve1(100), sieves::sieve2(100));
+        iter_equals(sieves::sieve1(1000), sieves::sieve2(1000));
+        iter_equals(sieves::sieve1(1000000), sieves::sieve2(1000000));
     }
 
     #[test]
     fn test_sieve3() {
         test_common(sieves::sieve3);
-        assert_eq!(sieves::sieve2(100), sieves::sieve3(100));
-        assert_eq!(sieves::sieve2(1000), sieves::sieve3(1000));
-        assert_eq!(sieves::sieve2(10000000), sieves::sieve3(10000000));
+        iter_equals(sieves::sieve2(100), sieves::sieve3(100));
+        iter_equals(sieves::sieve2(1000), sieves::sieve3(1000));
+        iter_equals(sieves::sieve2(10000000), sieves::sieve3(10000000));
     }
 }
